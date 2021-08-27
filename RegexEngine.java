@@ -67,11 +67,24 @@ class Edge {
     }
 }
 
-class eNFA {
+class Pair {
+    public int to;
+    public char ch;
 
+    public Pair(int to, char ch) {
+        this.to = to;
+        this.ch = ch;
+    }
+
+}
+
+class eNFA {
+    public static final int MAX = 100;
     private String regularExpression;
+    private boolean finalState[] = new boolean[MAX];
     private ArrayList<Edge> edges = new ArrayList<Edge>();
     private Set<Character> symbols = new TreeSet<Character>();
+    private Vector<Pair>[] table = new Vector[MAX];
     private int stateCounter = 0;
     private Map<Integer, Integer> endState = new TreeMap<Integer, Integer>();
 
@@ -79,13 +92,14 @@ class eNFA {
         super();
         this.regularExpression = regularExpression;
         setSymbols();
+        symbols.add('$');
 
         generate(0, 0, this.regularExpression.length() - 1, false);
 
-        //checkFinalState();
+        settable();
 
-        for (Edge e : edges)
-            System.out.println(e);
+        setFinalState();
+
     }
 
     private void setSymbols() {
@@ -97,7 +111,55 @@ class eNFA {
         }
     }
 
-    private void checkFinalState() {
+    public void showSymbols() {
+        System.out.print("Symbols : ");
+        for(Character s:symbols) {
+            System.out.print(s + " ");
+        }
+        System.out.println();
+    }
+
+    public Set<Character> getSymbols() {
+        return symbols;
+    }
+
+    public void showStateCounter() {
+        System.out.println("StateCounter : " + stateCounter);
+    }
+
+    private void setFinalState() {
+        /*
+         there are 2 types of final state
+         1. state with no edge out
+         2. state only contains edge way to itself
+         */
+        for (int i = 0; i <= stateCounter; i++) {
+            int count = 0;
+
+            // type 1
+            if (table[i] == null) {
+                finalState[i] = true;
+				continue;
+            }
+
+            // type 2
+            for (int j = 0; j < table[i].size(); j++)
+                if (table[i].elementAt(j).to != i)
+                    count++;
+            if (count == 0)
+                finalState[i] = true;
+        }
+    }
+
+    public void showEdges() {
+        for (Edge e : edges)
+            System.out.println(e);
+    }
+
+
+
+    public boolean[] getFinalState() {
+        return finalState;
     }
 
     /**
@@ -158,12 +220,12 @@ class eNFA {
                                 || regularExpression.charAt(rightBracket + 1) == '+')) {
                     i = rightBracket + 1;
 
-                    edges.add(new Edge(localPre, ++stateCounter, 'ℰ'));
+                    edges.add(new Edge(localPre, ++stateCounter, '$'));
                     localPre = stateCounter;
                     preBracket = stateCounter;
 
                     if(regularExpression.charAt(rightBracket + 1) == '*') {
-                        edges.add(new Edge(localPre, ++stateCounter, 'ℰ'));
+                        edges.add(new Edge(localPre, ++stateCounter, '$'));
                         localPre = stateCounter;
                     }
 
@@ -188,7 +250,7 @@ class eNFA {
                         || regularExpression.charAt(i + 1) == '+')) {
 
                     if(regularExpression.charAt(i + 1) == '*')
-                        edges.add(new Edge(localPre, ++stateCounter, 'ℰ'));
+                        edges.add(new Edge(localPre, ++stateCounter, '$'));
                     if(regularExpression.charAt(i + 1) == '+')
                         edges.add(new Edge(localPre, ++stateCounter, regularExpression.charAt(i)));
 
@@ -196,13 +258,13 @@ class eNFA {
                     edges.add(new Edge(localPre, localPre, regularExpression.charAt(i)));
 
                     if (i + 1 == right && isClosure)
-                        edges.add(new Edge(localPre, preState, 'ℰ'));
+                        edges.add(new Edge(localPre, preState, '$'));
                     //not Closure
                     else {
                         if (endState.containsKey(preState))
-                            edges.add(new Edge(localPre, endState.get(preState), 'ℰ'));
+                            edges.add(new Edge(localPre, endState.get(preState), '$'));
                         else {
-                            edges.add(new Edge(localPre, ++stateCounter, 'ℰ'));
+                            edges.add(new Edge(localPre, ++stateCounter, '$'));
                             if (i == right) endState.put(preState, stateCounter);
                         }
                     }
@@ -230,9 +292,64 @@ class eNFA {
         return true;
     }
 
+    private void settable() {
+        for (Edge e: edges) {
+            if (table[e.getFrom()] == null)
+                table[e.getFrom()] = new Vector<Pair>();
+            table[e.getFrom()].add(new Pair(e.getTo(), e.getCh()));
+        }
+    }
+
     public void transition_table(boolean verbose) {
+
         if(verbose) {
-            System.out.println("Transition Table of the Regex.");
+
+            // first line
+            System.out.print("    ");
+            for(Character s:symbols) {
+                System.out.print("       " + s);
+            }
+            System.out.println();
+
+            // rest line
+            for(int i = 0; i <= stateCounter; i++) {
+
+                if (i == 0) System.out.print(">");
+                else if (finalState[i]) System.out.print("*");
+                System.out.print("q" + i);
+
+
+                String str = "";
+                String subStr = "";
+                if(table[i] != null) {
+                    for(Character s:symbols) {
+
+                        boolean flag = false;
+                        subStr = "";
+                        for(int j = 0; j < table[i].size(); j++) {
+                            if(s.equals(table[i].elementAt(j).ch )) {
+                                if(flag) {
+                                    subStr = subStr + ",";
+                                }
+
+                                subStr = subStr + "q" + table[i].elementAt(j).to;
+                                flag = true;
+                            }
+
+                        }
+                        if(!flag) {
+                            subStr = "";
+                        }
+
+                        while(subStr.length() < 8) subStr = " " + subStr;
+
+                        str = str + subStr;
+                    }
+                }
+                if (!finalState[i]) str = " " + str;
+                if(i != 0) str = " " + str;
+                System.out.println(str);
+            }
         }
     }
 
@@ -267,6 +384,7 @@ public class RegexEngine {
         String regularExpression = scanner.nextLine();
 
         eNFA enfa = new eNFA(regularExpression);
+
 
         enfa.transition_table(verbose);
 
