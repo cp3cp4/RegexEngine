@@ -287,7 +287,7 @@ class eNFA {
 
     public void transition_table(boolean verbose) {
 
-        if(verbose || true) {
+        if(verbose) {
 
             // first line
             System.out.print("    ");
@@ -362,18 +362,6 @@ class DFA {
 
         generate();
 
-        for (Edge e : edges)
-            System.out.println(e);
-
-        System.out.print("final state : ");
-
-        for(int i = 0; i <= stateCounter; i++) {
-            if(dfaFinalState[i]) {
-                System.out.print(i + " ");
-            }
-        }
-
-        System.out.println();
         System.out.println("ready");
     }
 
@@ -444,9 +432,18 @@ class DFA {
         }
     }
 
-    public boolean check(String input) {
-        if("a".equals(input))
-            return true;
+    public boolean check(int state, String input) {
+
+        char ch = input.charAt(0);
+
+        if (dfaFinalState[state] && ch == '#') return true;
+
+        for (Edge e : edges) {
+            if(e.getFrom() == state && e.getCh() == ch) {
+                return check(e.getTo(), input.substring(1));
+            }
+        }
+
         return false;
     }
 }
@@ -496,9 +493,9 @@ public class RegexEngine {
 
         while(scanner.hasNextLine()) {
             String input = scanner.nextLine();
-            System.out.println(dfa.check(input));
+            // use # as end symbol
+            System.out.println(dfa.check(0, input + "#"));
         }
 
     }
 }
-
