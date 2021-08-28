@@ -1,6 +1,5 @@
 import java.util.*;
 
-
 /**
  * edges between states of FSA
  */
@@ -24,25 +23,16 @@ class Edge {
         return from;
     }
 
-    public void setFrom(int from) {
-        this.from = from;
-    }
 
     public int getTo() {
         return to;
     }
 
-    public void setTo(int to) {
-        this.to = to;
-    }
 
     public char getCh() {
         return ch;
     }
 
-    public void setCh(char ch) {
-        this.ch = ch;
-    }
 
     @Override
     public String toString() {
@@ -53,18 +43,6 @@ class Edge {
                 '}';
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Edge edge = (Edge) o;
-        return from == edge.from && to == edge.to && ch == edge.ch;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(from, to, ch);
-    }
 }
 
 class Pair {
@@ -79,12 +57,16 @@ class Pair {
 }
 
 class eNFA {
-    public static final int MAX = 100;
     private String regularExpression;
-    private boolean finalState[] = new boolean[MAX];
+    private boolean finalState[] = new boolean[100];
     private ArrayList<Edge> edges = new ArrayList<Edge>();
     private Set<Character> symbols = new TreeSet<Character>();
-    private Vector<Pair>[] table = new Vector[MAX];
+
+    public Vector<Pair>[] getTable() {
+        return table;
+    }
+
+    private Vector<Pair>[] table = new Vector[100];
     private int stateCounter = 0;
     private Map<Integer, Integer> endState = new TreeMap<Integer, Integer>();
 
@@ -96,7 +78,7 @@ class eNFA {
 
         generate(0, 0, this.regularExpression.length() - 1, false);
 
-        settable();
+        setTable();
 
         setFinalState();
 
@@ -124,7 +106,7 @@ class eNFA {
     }
 
     public void showStateCounter() {
-        System.out.println("StateCounter : " + stateCounter);
+        System.out.println("showStateCounter : " + stateCounter);
     }
 
     private void setFinalState() {
@@ -134,20 +116,20 @@ class eNFA {
          2. state only contains edge way to itself
          */
         for (int i = 0; i <= stateCounter; i++) {
-            int count = 0;
 
             // type 1
             if (table[i] == null) {
                 finalState[i] = true;
-				continue;
+                continue;
             }
 
             // type 2
+            boolean flag = true;
             for (int j = 0; j < table[i].size(); j++)
                 if (table[i].elementAt(j).to != i)
-                    count++;
-            if (count == 0)
-                finalState[i] = true;
+                    flag = false;
+
+            finalState[i] = flag;
         }
     }
 
@@ -171,7 +153,10 @@ class eNFA {
      */
     private boolean generate(int preState, int left, int right, boolean isClosure) {
 
-        if (left < 0 || right >= regularExpression.length()) {
+        if (left < 0) {
+            System.out.println("[ERROR] : Wrong Regular Expression");
+            System.exit(1);
+        } else if (right >= regularExpression.length()) {
             System.out.println("[ERROR] : Wrong Regular Expression");
             System.exit(1);
         }
@@ -230,20 +215,19 @@ class eNFA {
                     }
 
                     // handle regex inside ()*
-                    if (!generate(preBracket, leftBracket + 1, rightBracket - 1, true)) return false;
+                    if (generate(preBracket, leftBracket + 1, rightBracket - 1, true) == false) return false;
 
                 }
                 // (regex)
                 else {
                     preBracket = localPre;
-                    if (generate(preBracket, leftBracket + 1, rightBracket - 1, false) == false)
-                        return false;
+                    if (generate(preBracket, leftBracket + 1, rightBracket - 1, false) == false) return false;
                     i = rightBracket;
                 }
             }
             // single symbol(character)
             else {
-                if (regularExpression.charAt(i) == ')') continue;
+                if (regularExpression.charAt(i) == ')' ) continue;
 
                 if (i + 1 <= right &&
                         (regularExpression.charAt(i + 1) == '*'
@@ -269,7 +253,8 @@ class eNFA {
                         }
                     }
                     localPre = stateCounter;
-                    i++;// next character of * or +
+                    // next character of * or +
+                    i++;
                 }
                 else {
                     if (i == right && isClosure) {
@@ -292,7 +277,7 @@ class eNFA {
         return true;
     }
 
-    private void settable() {
+    private void setTable() {
         for (Edge e: edges) {
             if (table[e.getFrom()] == null)
                 table[e.getFrom()] = new Vector<Pair>();
@@ -302,7 +287,7 @@ class eNFA {
 
     public void transition_table(boolean verbose) {
 
-        if(verbose) {
+        if(verbose || true) {
 
             // first line
             System.out.print("    ");
@@ -357,8 +342,106 @@ class eNFA {
 
 class DFA {
 
+
+    private boolean finalState[] = new boolean[100];
+    private Set<Character> symbols = new TreeSet<Character>();
+    private Vector<Pair>[] table = new Vector[100];
+    private Set<Edge> edges = new HashSet<Edge>();
+    private MyHashSet subSet = null;
+    private Set<MyHashSet> set = new HashSet<MyHashSet>();
+    private Queue<MyHashSet> q = new LinkedList<MyHashSet>();
+    private Set<Edge> edgeSet = new HashSet<Edge>(); // visited or not
+    private boolean[] dfaFinalState = new boolean[100];
+    private int stateCounter = 0;
+
     public DFA(eNFA enfa) {
+        finalState = enfa.getFinalState();
+        symbols = enfa.getSymbols();
+        table = enfa.getTable();
+        symbols.remove('$');
+
+        generate();
+
+        for (Edge e : edges)
+            System.out.println(e);
+
+        System.out.print("final state : ");
+
+        for(int i = 0; i <= stateCounter; i++) {
+            if(dfaFinalState[i]) {
+                System.out.print(i + " ");
+            }
+        }
+
+        System.out.println();
         System.out.println("ready");
+    }
+
+    private void generate() {
+        init();
+        while (q.peek() != null) {
+            MyHashSet myset = q.peek();
+            q.remove();
+            for (Character ch : symbols) {
+                subSet = new MyHashSet();
+
+                Iterator it = myset.iterator();
+                while (it.hasNext()) {
+                    edgeSet.clear();
+                    dfs((Integer) it.next(), ch);
+                }
+                if (!subSet.isEmpty()) {
+                    if (set.contains(subSet)) {
+
+                        for (MyHashSet s : set) {
+                            if(subSet.equals(s)) {
+                                subSet = s;
+                                break;
+                            }
+                        }
+                    } else {
+                        q.add(subSet);
+                        set.add(subSet);
+                        subSet.state = stateCounter++;
+                        isFinalState(subSet, stateCounter - 1);
+                    }
+                    edges.add(new Edge(myset.state, subSet.state, ch));
+                }
+            }
+        }
+    }
+
+    private void init() {
+        edges.clear();
+        subSet = new MyHashSet();
+        subSet.add(0);
+        subSet.state = stateCounter++;
+        dfs(0, '$');
+        isFinalState(subSet, 0);
+        set.add(subSet);
+        q.add(subSet);
+    }
+
+    private void dfs(int from, char ch) {
+        if (table[from] == null)
+            return;
+
+        for (int i = 0; i < table[from].size(); i++) {
+            Edge edge = new Edge(from, table[from].elementAt(i).to, table[from].elementAt(i).ch);
+            if (!edgeSet.contains(edge) && table[from].elementAt(i).ch == ch) {
+                edgeSet.add(edge);
+                subSet.add(table[from].elementAt(i).to);
+                dfs(table[from].elementAt(i).to, '$');
+            }
+        }
+    }
+
+    public void isFinalState(Set<Integer> subSet, int s) {
+        Iterator<Integer> it = subSet.iterator();
+        while (it.hasNext()) {
+            if (finalState[it.next()])
+                dfaFinalState[s] = true;
+        }
     }
 
     public boolean check(String input) {
@@ -367,6 +450,28 @@ class DFA {
         return false;
     }
 }
+
+class MyHashSet extends HashSet<Integer> {
+    public int state;
+
+    @Override
+    public boolean equals(Object obj) {
+        boolean flag = true;
+
+        if (this.size() != ((MyHashSet)obj).size() )
+            flag = false;
+
+        Iterator<Integer> it = ((MyHashSet)obj).iterator();
+        while (it.hasNext()) {
+            if (!this.contains(it.next()))
+                flag = false;
+        }
+
+        return flag;
+    }
+}
+
+
 
 public class RegexEngine {
     public static void main(String[] args) {
@@ -385,7 +490,6 @@ public class RegexEngine {
 
         eNFA enfa = new eNFA(regularExpression);
 
-
         enfa.transition_table(verbose);
 
         DFA dfa = new DFA(enfa);
@@ -397,3 +501,4 @@ public class RegexEngine {
 
     }
 }
+
