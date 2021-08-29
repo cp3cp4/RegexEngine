@@ -8,10 +8,6 @@ class Edge {
     private int to;
     private char ch;
 
-    public Edge() {
-    }
-
-
     public Edge(int from, int to, char ch) {
         this.from = from;
         this.to = to;
@@ -56,18 +52,33 @@ class Pair {
 
 }
 
+class MyHashSet extends HashSet<Integer> {
+    public int state;
+
+    @Override
+    public boolean equals(Object obj) {
+        boolean flag = true;
+
+        if (this.size() != ((MyHashSet)obj).size() )
+            flag = false;
+
+        Iterator<Integer> it = ((MyHashSet)obj).iterator();
+        while (it.hasNext()) {
+            if (!this.contains(it.next()))
+                flag = false;
+        }
+
+        return flag;
+    }
+}
+
 class eNFA {
     private String regularExpression;
-    private boolean finalState[] = new boolean[100];
     private ArrayList<Edge> edges = new ArrayList<Edge>();
-    private Set<Character> symbols = new TreeSet<Character>();
-
-    public Vector<Pair>[] getTable() {
-        return table;
-    }
-
+    private boolean finalState[] = new boolean[100];
     private Vector<Pair>[] table = new Vector[100];
     private int stateCounter = 0;
+    private Set<Character> symbols = new TreeSet<Character>();
     private Map<Integer, Integer> endState = new TreeMap<Integer, Integer>();
 
     public eNFA(String regularExpression) {
@@ -91,22 +102,6 @@ class eNFA {
                     || Character.isSpaceChar(regularExpression.charAt(i)))
                 symbols.add(regularExpression.charAt(i));
         }
-    }
-
-    public void showSymbols() {
-        System.out.print("Symbols : ");
-        for(Character s:symbols) {
-            System.out.print(s + " ");
-        }
-        System.out.println();
-    }
-
-    public Set<Character> getSymbols() {
-        return symbols;
-    }
-
-    public void showStateCounter() {
-        System.out.println("showStateCounter : " + stateCounter);
     }
 
     private void setFinalState() {
@@ -133,15 +128,77 @@ class eNFA {
         }
     }
 
-    public void showEdges() {
-        for (Edge e : edges)
-            System.out.println(e);
+    private void setTable() {
+        for (Edge e: edges) {
+            if (table[e.getFrom()] == null)
+                table[e.getFrom()] = new Vector<Pair>();
+            table[e.getFrom()].add(new Pair(e.getTo(), e.getCh()));
+        }
     }
 
+    public Set<Character> getSymbols() {
+        return symbols;
+    }
 
+    public Vector<Pair>[] getTable() {
+        return table;
+    }
 
     public boolean[] getFinalState() {
         return finalState;
+    }
+
+    public void transition_table(boolean verbose) {
+
+        if(verbose) {
+
+            // first line
+            System.out.print("    ");
+            for(Character s:symbols) {
+                System.out.print("       " + s);
+            }
+            System.out.println();
+
+            // rest line
+            for(int i = 0; i <= stateCounter; i++) {
+
+                if (i == 0) System.out.print(">");
+                else if (finalState[i]) System.out.print("*");
+                System.out.print("q" + i);
+
+
+                String str = "";
+                String subStr = "";
+                if(table[i] != null) {
+                    for(Character s:symbols) {
+
+                        boolean flag = false;
+                        subStr = "";
+                        for(int j = 0; j < table[i].size(); j++) {
+                            if(s.equals(table[i].elementAt(j).ch )) {
+                                if(flag) {
+                                    subStr = subStr + ",";
+                                }
+
+                                subStr = subStr + "q" + table[i].elementAt(j).to;
+                                flag = true;
+                            }
+
+                        }
+                        if(!flag) {
+                            subStr = "";
+                        }
+
+                        while(subStr.length() < 8) subStr = " " + subStr;
+
+                        str = str + subStr;
+                    }
+                }
+                if (!finalState[i]) str = " " + str;
+                if(i != 0) str = " " + str;
+                System.out.println(str);
+            }
+        }
     }
 
     /**
@@ -149,7 +206,7 @@ class eNFA {
      * @param left index of left side of sub regular expression
      * @param right index of right side of sub regular expression
      * @param isClosure sub regular expression is closure or not
-     * @return
+     * @return generate succeeded or failed
      */
     private boolean generate(int preState, int left, int right, boolean isClosure) {
 
@@ -215,19 +272,22 @@ class eNFA {
                     }
 
                     // handle regex inside ()*
-                    if (generate(preBracket, leftBracket + 1, rightBracket - 1, true) == false) return false;
+                    boolean flag = generate(preBracket, leftBracket + 1, rightBracket - 1, true);
+                    if (flag == false) return false;
 
                 }
                 // (regex)
                 else {
                     preBracket = localPre;
-                    if (generate(preBracket, leftBracket + 1, rightBracket - 1, false) == false) return false;
+                    boolean flag = generate(preBracket, leftBracket + 1, rightBracket - 1, false);
+                    if (flag == false) return false;
                     i = rightBracket;
                 }
             }
             // single symbol(character)
             else {
-                if (regularExpression.charAt(i) == ')' ) continue;
+                char head = regularExpression.charAt(i);
+                if (head == ')' ) continue;
 
                 if (i + 1 <= right &&
                         (regularExpression.charAt(i + 1) == '*'
@@ -248,8 +308,10 @@ class eNFA {
                         if (endState.containsKey(preState))
                             edges.add(new Edge(localPre, endState.get(preState), '$'));
                         else {
-                            edges.add(new Edge(localPre, ++stateCounter, '$'));
-                            if (i == right) endState.put(preState, stateCounter);
+                            stateCounter = stateCounter + 1;
+                            if (right == i) endState.put(preState, stateCounter);
+                            Edge e = new Edge(localPre, stateCounter, '$');
+                            edges.add(e);
                         }
                     }
                     localPre = stateCounter;
@@ -265,8 +327,10 @@ class eNFA {
                         if (endState.containsKey(preState))
                             edges.add(new Edge(localPre, endState.get(preState), regularExpression.charAt(i)));
                         else {
-                            edges.add(new Edge(localPre, ++stateCounter, regularExpression.charAt(i)));
-                            if (i == right) endState.put(preState, stateCounter);
+                            stateCounter = stateCounter + 1;
+                            if (right == i) endState.put(preState, stateCounter);
+                            Edge e = new Edge(localPre, stateCounter, regularExpression.charAt(i));
+                            edges.add(e);
                         }
                     }
                     localPre = stateCounter;
@@ -277,81 +341,39 @@ class eNFA {
         return true;
     }
 
-    private void setTable() {
-        for (Edge e: edges) {
-            if (table[e.getFrom()] == null)
-                table[e.getFrom()] = new Vector<Pair>();
-            table[e.getFrom()].add(new Pair(e.getTo(), e.getCh()));
+    // used in debug
+    public void showSymbols() {
+        System.out.print("Symbols : ");
+        for(Character s:symbols) {
+            System.out.print(s + " ");
         }
+        System.out.println();
     }
 
-    public void transition_table(boolean verbose) {
+    // used in debug
+    public void showStateCounter() {
+        System.out.println("showStateCounter : " + stateCounter);
+    }
 
-        if(verbose) {
-
-            // first line
-            System.out.print("    ");
-            for(Character s:symbols) {
-                System.out.print("       " + s);
-            }
-            System.out.println();
-
-            // rest line
-            for(int i = 0; i <= stateCounter; i++) {
-
-                if (i == 0) System.out.print(">");
-                else if (finalState[i]) System.out.print("*");
-                System.out.print("q" + i);
-
-
-                String str = "";
-                String subStr = "";
-                if(table[i] != null) {
-                    for(Character s:symbols) {
-
-                        boolean flag = false;
-                        subStr = "";
-                        for(int j = 0; j < table[i].size(); j++) {
-                            if(s.equals(table[i].elementAt(j).ch )) {
-                                if(flag) {
-                                    subStr = subStr + ",";
-                                }
-
-                                subStr = subStr + "q" + table[i].elementAt(j).to;
-                                flag = true;
-                            }
-
-                        }
-                        if(!flag) {
-                            subStr = "";
-                        }
-
-                        while(subStr.length() < 8) subStr = " " + subStr;
-
-                        str = str + subStr;
-                    }
-                }
-                if (!finalState[i]) str = " " + str;
-                if(i != 0) str = " " + str;
-                System.out.println(str);
-            }
-        }
+    // used in debug
+    public void showEdges() {
+        for (Edge e : edges)
+            System.out.println(e);
     }
 
 }
 
 class DFA {
 
-
+    private Set<MyHashSet> set = new HashSet<MyHashSet>();
+    private MyHashSet subSet = null;
     private boolean finalState[] = new boolean[100];
     private Set<Character> symbols = new TreeSet<Character>();
     private Vector<Pair>[] table = new Vector[100];
-    private Set<Edge> edges = new HashSet<Edge>();
-    private MyHashSet subSet = null;
-    private Set<MyHashSet> set = new HashSet<MyHashSet>();
-    private Queue<MyHashSet> q = new LinkedList<MyHashSet>();
     private Set<Edge> edgeSet = new HashSet<Edge>(); // visited or not
+    private Set<Edge> edges = new HashSet<Edge>();
     private boolean[] dfaFinalState = new boolean[100];
+    private Queue<MyHashSet> q = new LinkedList<MyHashSet>();
     private int stateCounter = 0;
 
     public DFA(eNFA enfa) {
@@ -362,7 +384,6 @@ class DFA {
 
         generate();
 
-        System.out.println("ready");
     }
 
     private void generate() {
@@ -425,10 +446,8 @@ class DFA {
     }
 
     public void isFinalState(Set<Integer> subSet, int s) {
-        Iterator<Integer> it = subSet.iterator();
-        while (it.hasNext()) {
-            if (finalState[it.next()])
-                dfaFinalState[s] = true;
+        for(Integer i : subSet) {
+            if (finalState[i] == true) dfaFinalState[s] = true;
         }
     }
 
@@ -447,28 +466,6 @@ class DFA {
         return false;
     }
 }
-
-class MyHashSet extends HashSet<Integer> {
-    public int state;
-
-    @Override
-    public boolean equals(Object obj) {
-        boolean flag = true;
-
-        if (this.size() != ((MyHashSet)obj).size() )
-            flag = false;
-
-        Iterator<Integer> it = ((MyHashSet)obj).iterator();
-        while (it.hasNext()) {
-            if (!this.contains(it.next()))
-                flag = false;
-        }
-
-        return flag;
-    }
-}
-
-
 
 public class RegexEngine {
     public static void main(String[] args) {
@@ -490,6 +487,8 @@ public class RegexEngine {
         enfa.transition_table(verbose);
 
         DFA dfa = new DFA(enfa);
+
+        System.out.println("ready");
 
         while(scanner.hasNextLine()) {
             String input = scanner.nextLine();
